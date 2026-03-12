@@ -141,18 +141,30 @@ export default function App() {
   const [pendingScroll, setPendingScroll] = useState(null);
   const sectionRefs = React.useRef(new Map());
 
+  const pushToast = (message, type = "success") => {
+    const id = crypto.randomUUID();
+    setToastItems((items) => [...items, { id, message, type }]);
+    setTimeout(() => {
+      setToastItems((items) => items.filter((item) => item.id !== id));
+    }, 3200);
+  };
+
   const selectedLessonTitle = selectedLesson?.title || "Select a lesson";
 
   const refreshLessons = async (preferredId) => {
-    const data = await api.listLessons();
-    setLessons(data);
-    if (!data.length) {
-      setSelectedLessonId(null);
-      return;
+    try {
+      const data = await api.listLessons();
+      setLessons(data);
+      if (!data.length) {
+        setSelectedLessonId(null);
+        return;
+      }
+      const targetId =
+        preferredId ?? (data.some((lesson) => lesson.id === selectedLessonId) ? selectedLessonId : null);
+      setSelectedLessonId(targetId || data[0].id);
+    } catch (error) {
+      pushToast(error.message || "Failed to load lessons.", "error");
     }
-    const targetId =
-      preferredId ?? (data.some((lesson) => lesson.id === selectedLessonId) ? selectedLessonId : null);
-    setSelectedLessonId(targetId || data[0].id);
   };
 
   const loadLesson = async (id, options = {}) => {
@@ -160,8 +172,12 @@ export default function App() {
     if (showLoading) {
       setLoadingLesson(true);
     }
-    const data = await api.getLesson(id);
-    setSelectedLesson(data);
+    try {
+      const data = await api.getLesson(id);
+      setSelectedLesson(data);
+    } catch (error) {
+      pushToast(error.message || "Failed to load lesson.", "error");
+    }
     if (showLoading) {
       setLoadingLesson(false);
     }
@@ -198,70 +214,98 @@ export default function App() {
 
   const handleCreateLesson = async (title) => {
     if (!title) return;
-    const lesson = await api.createLesson({ title });
-    await refreshLessons();
-    setSelectedLessonId(lesson.id);
-    setCreatingLesson(false);
-    setEditMode(true);
+    try {
+      const lesson = await api.createLesson({ title });
+      await refreshLessons();
+      setSelectedLessonId(lesson.id);
+      setCreatingLesson(false);
+      setEditMode(true);
+    } catch (error) {
+      pushToast(error.message || "Failed to create lesson.", "error");
+    }
   };
 
   const handleUpdateLessonTitle = async (value) => {
     if (!selectedLesson) return;
-    await api.updateLesson(selectedLesson.id, { title: value || "Untitled Lesson" });
-    await refreshLessons();
-    await loadLesson(selectedLesson.id, { showLoading: false });
+    try {
+      await api.updateLesson(selectedLesson.id, { title: value || "Untitled Lesson" });
+      await refreshLessons();
+      await loadLesson(selectedLesson.id, { showLoading: false });
+    } catch (error) {
+      pushToast(error.message || "Failed to save lesson title.", "error");
+    }
   };
 
   const handleAddSection = async () => {
     if (!selectedLesson) return;
     const order = selectedLesson.sections.length + 1;
-    const created = await api.addSection(selectedLesson.id, {
-      section_order: order,
-      subheading: "",
-      note: ""
-    });
-    await loadLesson(selectedLesson.id, { showLoading: false });
-    if (created?.id) {
-      setPendingScroll({ sectionId: created.id });
+    try {
+      const created = await api.addSection(selectedLesson.id, {
+        section_order: order,
+        subheading: "",
+        note: ""
+      });
+      await loadLesson(selectedLesson.id, { showLoading: false });
+      if (created?.id) {
+        setPendingScroll({ sectionId: created.id });
+      }
+    } catch (error) {
+      pushToast(error.message || "Failed to add section.", "error");
     }
   };
 
   const handleSectionUpdate = async (sectionId, payload) => {
-    await api.updateSection(sectionId, payload);
-    await loadLesson(selectedLesson.id, { showLoading: false });
-    setPendingScroll({ sectionId });
+    try {
+      await api.updateSection(sectionId, payload);
+      await loadLesson(selectedLesson.id, { showLoading: false });
+      setPendingScroll({ sectionId });
+    } catch (error) {
+      pushToast(error.message || "Failed to update section.", "error");
+    }
   };
 
   const handleAddBible = async (sectionId, citation) => {
     if (!citation) return;
-    const created = await api.addBible(sectionId, { citation });
-    await loadLesson(selectedLesson.id, { showLoading: false });
-    setPendingScroll({ sectionId, bibleId: created?.id });
+    try {
+      const created = await api.addBible(sectionId, { citation });
+      await loadLesson(selectedLesson.id, { showLoading: false });
+      setPendingScroll({ sectionId, bibleId: created?.id });
+    } catch (error) {
+      pushToast(error.message || "Failed to add bible caption.", "error");
+    }
   };
 
   const handleBibleUpdate = async (bibleId, citation, sectionId) => {
     if (!citation) return;
-    await api.updateBible(bibleId, { citation });
-    await loadLesson(selectedLesson.id, { showLoading: false });
-    if (sectionId) {
-      setPendingScroll({ sectionId, bibleId });
+    try {
+      await api.updateBible(bibleId, { citation });
+      await loadLesson(selectedLesson.id, { showLoading: false });
+      if (sectionId) {
+        setPendingScroll({ sectionId, bibleId });
+      }
+    } catch (error) {
+      pushToast(error.message || "Failed to update bible caption.", "error");
     }
   };
 
   const handleBibleExpand = async (bibleId, mode) => {
-    const data = await api.getBibleVerses(bibleId, mode);
-    setSelectedLesson((current) => {
-      if (!current) return current;
-      return {
-        ...current,
-        sections: current.sections.map((section) => ({
-          ...section,
-          bibles: section.bibles.map((bible) =>
-            bible.id === bibleId ? { ...bible, verses: data.verses, mode: data.mode } : bible
-          )
-        }))
-      };
-    });
+    try {
+      const data = await api.getBibleVerses(bibleId, mode);
+      setSelectedLesson((current) => {
+        if (!current) return current;
+        return {
+          ...current,
+          sections: current.sections.map((section) => ({
+            ...section,
+            bibles: section.bibles.map((bible) =>
+              bible.id === bibleId ? { ...bible, verses: data.verses, mode: data.mode } : bible
+            )
+          }))
+        };
+      });
+    } catch (error) {
+      pushToast(error.message || "Failed to load verses.", "error");
+    }
   };
 
   const handleDeleteLesson = async (lessonId) => {
@@ -332,14 +376,6 @@ export default function App() {
       confirmState.resolve(result);
     }
     setConfirmState(null);
-  };
-
-  const pushToast = (message, type = "success") => {
-    const id = crypto.randomUUID();
-    setToastItems((items) => [...items, { id, message, type }]);
-    setTimeout(() => {
-      setToastItems((items) => items.filter((item) => item.id !== id));
-    }, 3200);
   };
 
   const sortedLessons = useMemo(() => {

@@ -1,15 +1,15 @@
 {
+  "$schema": "../node_modules/@tauri-apps/cli/schema.json",
+  "productName": "Sermon Manager",
+  "version": "0.1.0",
+  "identifier": "com.sermon.manager",
   "build": {
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build",
-    "devPath": "http://localhost:5173",
-    "distDir": "../dist"
+    "devUrl": "http://localhost:5173",
+    "frontendDist": "../dist"
   },
-  "package": {
-    "productName": "Sermon Manager",
-    "version": "0.1.0"
-  },
-  "tauri": {
+  "app": {
     "windows": [
       {
         "title": "Sermon Manager",
@@ -22,5 +22,15 @@
     "security": {
       "csp": null
     }
+  },
+  "bundle": {
+    "active": true,
+    "icon": [
+      "icons/icon.ico"
+    ],
+    "resources": [
+      "../server/**/*",
+      "../data/sermons.db"
+    ]
   }
 }

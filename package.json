@@ -14,7 +14,7 @@
     "tauri:build": "tauri build"
   },
   "dependencies": {
-    "@tauri-apps/api": "^1.6.0",
+    "@tauri-apps/api": "2.5.0",
     "better-sqlite3": "^9.4.1",
     "cors": "^2.8.5",
     "express": "^4.19.2",
@@ -23,7 +23,7 @@
   },
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.12",
-    "@tauri-apps/cli": "^1.6.0",
+    "@tauri-apps/cli": "2.5.0",
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.20",
     "concurrently": "^9.0.1",

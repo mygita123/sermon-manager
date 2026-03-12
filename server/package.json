@@ -1,0 +1,11 @@
+{
+  "name": "sermon-api",
+  "private": true,
+  "version": "0.1.0",
+  "type": "commonjs",
+  "dependencies": {
+    "better-sqlite3": "^9.4.1",
+    "cors": "^2.8.5",
+    "express": "^4.19.2"
+  }
+}
