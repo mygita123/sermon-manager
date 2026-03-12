@@ -76,9 +76,10 @@ function InlineEdit({
   );
 }
 
-function BibleBlock({ bible, onExpand }) {
+function BibleBlock({ bible, onExpand, compact = false, getVerseHighlights, onVerseSelect }) {
   const [loading, setLoading] = useState(false);
   const isExpanded = bible.mode === "full";
+  const highlight = useMemo(() => getHighlightRange(bible.citation), [bible.citation]);
 
   const handleToggle = async () => {
     if (loading) return;
@@ -89,7 +90,11 @@ function BibleBlock({ bible, onExpand }) {
   };
 
   return (
-    <div className="rounded-2xl border border-parchment-200 bg-white/70 p-4 shadow-sm">
+    <div
+      className={`rounded-2xl border border-parchment-200 bg-white/70 shadow-sm ${
+        compact ? "p-2" : "p-4"
+      }`}
+    >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <span className="text-sm font-semibold uppercase tracking-wide text-parchment-700">
           {bible.citation}
@@ -103,22 +108,57 @@ function BibleBlock({ bible, onExpand }) {
           </button>
           {bible.canDelete && (
             <button
-              className="rounded-full border border-rose-300 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-rose-600 transition hover:border-rose-400 hover:text-rose-700"
+              className="rounded-full border border-rose-300 p-2 text-rose-600 transition hover:border-rose-400 hover:text-rose-700"
               onClick={() => bible.onDelete?.(bible.id)}
+              aria-label="Delete bible caption"
             >
-              Delete
+              <TrashIcon className="h-3.5 w-3.5" />
             </button>
           )}
         </div>
       </div>
-      <div className="prose prose-slate mt-3 max-w-none prose-p:leading-relaxed">
+      <div
+        className={`prose prose-slate max-w-none ${
+          compact
+            ? "mt-1.5 prose-p:leading-tight prose-p:my-0.5"
+            : "mt-3 prose-p:leading-snug prose-p:my-1"
+        }`}
+      >
         {bible.verses?.length ? (
-          bible.verses.map((verse) => (
-            <p key={verse.id}>
-              <span className="font-semibold text-parchment-700">{verse.verse}. </span>
-              {verse.text}
-            </p>
-          ))
+          bible.verses.map((verse) => {
+            const isHighlighted =
+              isExpanded &&
+              highlight &&
+              verse.verse >= highlight.start &&
+              verse.verse <= highlight.end;
+            const ranges = getVerseHighlights?.(bible.id, verse.verse) || [];
+            const segments = splitByHighlightRanges(verse.text, ranges);
+            return (
+              <p
+                key={verse.id}
+                className={`transition ${isHighlighted ? "font-semibold text-ink-900" : ""}`}
+                onMouseUp={(event) => onVerseSelect?.(bible.id, verse.verse, verse.text, event)}
+                title="Select text to highlight"
+              >
+                <span className="font-semibold text-parchment-700">{verse.verse}. </span>
+                <span data-verse-text>
+                  {segments.map((segment, index) =>
+                    segment.highlighted ? (
+                      <span
+                        key={`${verse.id}-${segment.start}-${segment.end}`}
+                        className="rounded-[2px] bg-amber-200/70 px-0.5"
+                        style={{ boxDecorationBreak: "clone" }}
+                      >
+                        {segment.text}
+                      </span>
+                    ) : (
+                      <span key={`${verse.id}-plain-${index}`}>{segment.text}</span>
+                    )
+                  )}
+                </span>
+              </p>
+            );
+          })
         ) : (
           <p className="text-sm text-ink-500">No verses available for this citation.</p>
         )}
@@ -127,12 +167,169 @@ function BibleBlock({ bible, onExpand }) {
   );
 }
 
+function TrashIcon({ className = "" }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M3 6h18" />
+      <path d="M8 6V4h8v2" />
+      <path d="M9 10v7" />
+      <path d="M12 10v7" />
+      <path d="M15 10v7" />
+      <path d="M6 6l1 14h10l1-14" />
+    </svg>
+  );
+}
+
+function MagnifierIcon({ className = "", variant = "in" }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="M16 16l4.2 4.2" />
+      {variant === "in" ? <path d="M11 8v6M8 11h6" /> : <path d="M8 11h6" />}
+    </svg>
+  );
+}
+
+function getHighlightRange(citation) {
+  if (!citation) return null;
+  const normalized = citation.replace(/[\u2013\u2014]/g, "-");
+  const match = normalized.match(/(\d+)(?::(\d+)(?:-(\d+))?)?$/);
+  if (!match) return null;
+  const verseStart = match[2] ? Number(match[2]) : null;
+  const verseEnd = match[3] ? Number(match[3]) : null;
+  if (!Number.isFinite(verseStart)) return null;
+  return {
+    start: verseStart,
+    end: Number.isFinite(verseEnd) ? verseEnd : verseStart
+  };
+}
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function normalizeRanges(ranges) {
+  const cleaned = ranges
+    .filter((range) => range && Number.isFinite(range.start) && Number.isFinite(range.end))
+    .map((range) => ({
+      start: Math.min(range.start, range.end),
+      end: Math.max(range.start, range.end)
+    }))
+    .filter((range) => range.end > range.start)
+    .sort((a, b) => a.start - b.start);
+
+  const merged = [];
+  for (const range of cleaned) {
+    const last = merged[merged.length - 1];
+    if (!last || range.start > last.end) {
+      merged.push({ ...range });
+    } else {
+      last.end = Math.max(last.end, range.end);
+    }
+  }
+  return merged;
+}
+
+function isRangeCovered(ranges, start, end) {
+  let cursor = start;
+  for (const range of ranges) {
+    if (range.end <= cursor) continue;
+    if (range.start > cursor) return false;
+    cursor = Math.max(cursor, range.end);
+    if (cursor >= end) return true;
+  }
+  return false;
+}
+
+function addRange(ranges, start, end) {
+  return normalizeRanges([...ranges, { start, end }]);
+}
+
+function subtractRange(ranges, start, end) {
+  const result = [];
+  for (const range of ranges) {
+    if (end <= range.start || start >= range.end) {
+      result.push(range);
+    } else {
+      if (start > range.start) {
+        result.push({ start: range.start, end: start });
+      }
+      if (end < range.end) {
+        result.push({ start: end, end: range.end });
+      }
+    }
+  }
+  return result;
+}
+
+function splitByHighlightRanges(text, ranges) {
+  const normalized = normalizeRanges(ranges);
+  if (!normalized.length) return [{ text, highlighted: false }];
+
+  const segments = [];
+  let cursor = 0;
+  for (const range of normalized) {
+    const start = clamp(range.start, 0, text.length);
+    const end = clamp(range.end, 0, text.length);
+    if (start > cursor) {
+      segments.push({ text: text.slice(cursor, start), highlighted: false });
+    }
+    if (end > start) {
+      segments.push({ text: text.slice(start, end), highlighted: true, start, end });
+      cursor = end;
+    }
+  }
+  if (cursor < text.length) {
+    segments.push({ text: text.slice(cursor), highlighted: false });
+  }
+  return segments;
+}
+
+function normalizeHighlightState(raw) {
+  if (!raw || typeof raw !== "object") return {};
+  const next = {};
+  for (const [bibleId, verses] of Object.entries(raw)) {
+    if (!verses || typeof verses !== "object" || Array.isArray(verses)) continue;
+    const verseMap = {};
+    for (const [verseNumber, ranges] of Object.entries(verses)) {
+      if (!Array.isArray(ranges)) continue;
+      const normalized = normalizeRanges(ranges);
+      if (normalized.length) {
+        verseMap[verseNumber] = normalized;
+      }
+    }
+    if (Object.keys(verseMap).length) {
+      next[bibleId] = verseMap;
+    }
+  }
+  return next;
+}
+
 export default function App() {
   const [lessons, setLessons] = useState([]);
   const [selectedLessonId, setSelectedLessonId] = useState(null);
   const [selectedLesson, setSelectedLesson] = useState(null);
   const [editMode, setEditMode] = useState(false);
   const [presentationMode, setPresentationMode] = useState(false);
+  const [presentationZoom, setPresentationZoom] = useState(1);
   const [creatingLesson, setCreatingLesson] = useState(false);
   const [loadingLesson, setLoadingLesson] = useState(false);
   const [titleEditSignal, setTitleEditSignal] = useState(0);
@@ -140,6 +337,98 @@ export default function App() {
   const [toastItems, setToastItems] = useState([]);
   const [pendingScroll, setPendingScroll] = useState(null);
   const sectionRefs = React.useRef(new Map());
+  const [highlightMap, setHighlightMap] = useState(() => {
+    try {
+      const raw = localStorage.getItem("bibleHighlights");
+      return normalizeHighlightState(raw ? JSON.parse(raw) : {});
+    } catch (error) {
+      console.warn("Failed to load bible highlights", error);
+      return {};
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("bibleHighlights", JSON.stringify(highlightMap));
+    } catch (error) {
+      console.warn("Failed to save bible highlights", error);
+    }
+  }, [highlightMap]);
+
+  const zoomIn = () => {
+    setPresentationZoom((value) => Math.min(1.4, Number((value + 0.1).toFixed(2))));
+  };
+
+  const zoomOut = () => {
+    setPresentationZoom((value) => Math.max(0.8, Number((value - 0.1).toFixed(2))));
+  };
+
+  const getVerseHighlights = (bibleId, verseNumber) => {
+    const verseMap = highlightMap?.[bibleId];
+    if (!verseMap) return [];
+    const ranges = verseMap[String(verseNumber)];
+    return Array.isArray(ranges) ? ranges : [];
+  };
+
+  const toggleHighlightRange = (bibleId, verseNumber, start, end, textLength) => {
+    setHighlightMap((prev) => {
+      const next = { ...prev };
+      const verseMap = { ...(next[bibleId] || {}) };
+      const key = String(verseNumber);
+      const clampedStart = clamp(start, 0, textLength);
+      const clampedEnd = clamp(end, 0, textLength);
+      if (clampedEnd <= clampedStart) return prev;
+
+      const existing = normalizeRanges(Array.isArray(verseMap[key]) ? verseMap[key] : []);
+      const covered = isRangeCovered(existing, clampedStart, clampedEnd);
+      const updated = covered
+        ? subtractRange(existing, clampedStart, clampedEnd)
+        : addRange(existing, clampedStart, clampedEnd);
+
+      if (updated.length) {
+        verseMap[key] = updated;
+      } else {
+        delete verseMap[key];
+      }
+
+      if (Object.keys(verseMap).length) {
+        next[bibleId] = verseMap;
+      } else {
+        delete next[bibleId];
+      }
+      return next;
+    });
+  };
+
+  const handleVerseSelect = (bibleId, verseNumber, verseText, event) => {
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed) return;
+    const container = event.currentTarget.querySelector("[data-verse-text]");
+    if (!container) return;
+    const range = selection.getRangeAt(0);
+    if (!container.contains(range.startContainer) || !container.contains(range.endContainer)) {
+      return;
+    }
+
+    const preRange = range.cloneRange();
+    preRange.selectNodeContents(container);
+    preRange.setEnd(range.startContainer, range.startOffset);
+
+    let start = preRange.toString().length;
+    let end = start + range.toString().length;
+    const text = verseText || container.textContent || "";
+
+    while (start < end && /\s/.test(text[start])) start += 1;
+    while (end > start && /\s/.test(text[end - 1])) end -= 1;
+
+    if (end <= start) {
+      selection.removeAllRanges();
+      return;
+    }
+
+    toggleHighlightRange(bibleId, verseNumber, start, end, text.length);
+    selection.removeAllRanges();
+  };
 
   const pushToast = (message, type = "success") => {
     const id = crypto.randomUUID();
@@ -412,29 +701,52 @@ export default function App() {
       )}
 
       {presentationMode && (
-        <button
-          className="fixed right-6 top-6 z-50 rounded-full bg-ink-900 px-4 py-2 text-sm font-semibold text-white shadow-lift"
-          onClick={() => setPresentationMode(false)}
-        >
-          Minimize
-        </button>
+        <div className="fixed right-6 top-6 z-50 flex flex-wrap items-center gap-2">
+          <button
+            className="inline-flex items-center gap-2 rounded-full border border-ink-200 bg-white/90 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-ink-700 shadow-lift transition hover:border-ink-400"
+            onClick={zoomOut}
+          >
+            <MagnifierIcon className="h-4 w-4" variant="out" />
+            Zoom Out
+          </button>
+          <button
+            className="inline-flex items-center gap-2 rounded-full border border-ink-200 bg-white/90 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-ink-700 shadow-lift transition hover:border-ink-400"
+            onClick={zoomIn}
+          >
+            <MagnifierIcon className="h-4 w-4" variant="in" />
+            Zoom In
+          </button>
+          <button
+            className="rounded-full bg-ink-900 px-4 py-2 text-sm font-semibold text-white shadow-lift"
+            onClick={() => setPresentationMode(false)}
+          >
+            Minimize
+          </button>
+        </div>
       )}
 
       <div
-        className={`grid min-h-[calc(100vh-80px)] grid-cols-1 gap-6 p-6 ${
-          presentationMode ? "bg-parchment-50" : "lg:grid-cols-[1fr_280px]"
+        className={`grid min-h-[calc(100vh-80px)] grid-cols-1 ${
+          presentationMode ? "gap-3 bg-parchment-50 p-3" : "gap-6 p-6 lg:grid-cols-[1fr_280px]"
         }`}
       >
         <main
-          className={`fade-in rounded-3xl border border-parchment-200 bg-white/80 p-6 shadow-lift ${
-            presentationMode ? "lg:col-span-2" : ""
+          className={`fade-in rounded-3xl border border-parchment-200 bg-white/80 shadow-lift ${
+            presentationMode ? "p-3 lg:col-span-2" : "p-6"
           }`}
+          style={presentationMode ? { zoom: presentationZoom } : undefined}
         >
           {loadingLesson ? (
             <div className="text-ink-500">Loading lesson...</div>
           ) : selectedLesson ? (
-            <div className="space-y-8">
-              <div className="border-b border-parchment-200 pb-5">
+            <div className={presentationMode ? "space-y-3" : "space-y-8"}>
+              <div
+                className={
+                  presentationMode
+                    ? "border-b border-parchment-200 pb-2"
+                    : "border-b border-parchment-200 pb-5"
+                }
+              >
                 <div className="flex flex-wrap items-center gap-3">
                   <InlineEdit
                     value={selectedLesson.title}
@@ -454,17 +766,18 @@ export default function App() {
                         Edit
                       </button>
                       <button
-                        className="rounded-full border border-rose-300 px-2 py-1 text-xs font-semibold uppercase tracking-wide text-rose-600 transition hover:border-rose-400 hover:text-rose-700"
+                        className="rounded-full border border-rose-300 p-2 text-rose-600 transition hover:border-rose-400 hover:text-rose-700"
                         onClick={() => handleDeleteLesson(selectedLesson.id)}
+                        aria-label="Delete lesson"
                       >
-                        Delete Lesson
+                        <TrashIcon className="h-4 w-4" />
                       </button>
                     </>
                   )}
                 </div>
               </div>
 
-              <div className="space-y-10">
+              <div className={presentationMode ? "space-y-4" : "space-y-10"}>
                 {selectedLesson.sections.map((section) => (
                   <div
                     key={section.id}
@@ -476,45 +789,54 @@ export default function App() {
                         sectionRefs.current.delete(section.id);
                       }
                     }}
-                    className="space-y-4 rounded-2xl bg-parchment-50/60 p-5"
+                    className={`rounded-2xl bg-parchment-50/60 ${
+                      presentationMode ? "space-y-2 p-3" : "space-y-4 p-5"
+                    }`}
                   >
                     <div className="flex flex-wrap items-center justify-between gap-3">
-                      <InlineEdit
-                        value={section.subheading}
-                        placeholder="Add subheading"
-                        className="font-display text-xl font-semibold text-ink-900"
-                        canEdit={editMode}
-                        onSave={(value) => handleSectionUpdate(section.id, { subheading: value })}
-                      />
+                      {(editMode || !presentationMode || section.subheading) && (
+                        <InlineEdit
+                          value={section.subheading}
+                          placeholder="Add subheading"
+                          className="font-display text-xl font-semibold text-ink-900"
+                          canEdit={editMode}
+                          onSave={(value) => handleSectionUpdate(section.id, { subheading: value })}
+                        />
+                      )}
                       {editMode && (
                         <button
-                          className="rounded-full border border-rose-300 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-rose-600 transition hover:border-rose-400 hover:text-rose-700"
+                          className="rounded-full border border-rose-300 p-2 text-rose-600 transition hover:border-rose-400 hover:text-rose-700"
                           onClick={() => handleDeleteSection(section.id)}
+                          aria-label="Delete section"
                         >
-                          Delete Section
+                          <TrashIcon className="h-4 w-4" />
                         </button>
                       )}
                     </div>
 
-                    <InlineEdit
-                      value={section.note}
-                      placeholder="Add note"
-                      className="text-base text-ink-700"
-                      multiline
-                      canEdit={editMode}
-                      onSave={(value) => handleSectionUpdate(section.id, { note: value })}
-                    />
+                    {(editMode || section.note) && (
+                      <InlineEdit
+                        value={section.note}
+                        placeholder="Add note"
+                        className="text-base text-ink-700"
+                        multiline
+                        canEdit={editMode}
+                        onSave={(value) => handleSectionUpdate(section.id, { note: value })}
+                      />
+                    )}
 
-                    <div className="space-y-4">
+                    <div className={presentationMode ? "space-y-2" : "space-y-4"}>
                       {section.bibles.map((bible) => (
                         <div key={bible.id} data-bible-id={bible.id} className="space-y-2">
-                          <InlineEdit
-                            value={bible.citation}
-                            placeholder="Bible citation"
-                            className="text-sm font-semibold uppercase tracking-wide text-parchment-700"
-                            canEdit={editMode}
-                            onSave={(value) => handleBibleUpdate(bible.id, value, section.id)}
-                          />
+                          {editMode && (
+                            <InlineEdit
+                              value={bible.citation}
+                              placeholder="Bible citation"
+                              className="text-sm font-semibold uppercase tracking-wide text-parchment-700"
+                              canEdit={editMode}
+                              onSave={(value) => handleBibleUpdate(bible.id, value, section.id)}
+                            />
+                          )}
                           <BibleBlock
                             bible={{
                               ...bible,
@@ -522,6 +844,9 @@ export default function App() {
                               onDelete: (id) => handleDeleteBible(id, section.id)
                             }}
                             onExpand={handleBibleExpand}
+                            compact={presentationMode}
+                            getVerseHighlights={getVerseHighlights}
+                            onVerseSelect={handleVerseSelect}
                           />
                         </div>
                       ))}
@@ -608,10 +933,12 @@ export default function App() {
                 Cancel
               </button>
               <button
-                className="rounded-full bg-rose-600 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-rose-700"
+                className="rounded-full bg-rose-600 p-2 text-white shadow-sm transition hover:bg-rose-700"
                 onClick={() => closeConfirm(true)}
+                aria-label={confirmState.confirmText}
               >
-                {confirmState.confirmText}
+                <TrashIcon className="h-4 w-4" />
+                <span className="sr-only">{confirmState.confirmText}</span>
               </button>
             </div>
           </div>
@@ -668,22 +995,31 @@ function LessonCreator({ onSave, onCancel }) {
 function BibleAdder({ onSave }) {
   const [citation, setCitation] = useState("");
 
+  const submit = () => {
+    const trimmed = citation.trim();
+    if (!trimmed) return;
+    onSave(trimmed);
+    setCitation("");
+  };
+
   return (
-    <div className="rounded-2xl border border-dashed border-parchment-300 bg-white/70 p-4">
-      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-parchment-600">Add Bible Caption</p>
-      <div className="mt-3 flex flex-wrap items-center gap-2">
+    <div className="rounded-2xl border border-dashed border-parchment-300 bg-white/70 px-3 py-2">
+      <div className="flex flex-wrap items-center gap-2">
         <input
-          className="flex-1 rounded-lg border border-parchment-200 bg-white/80 p-2 text-sm focus:border-parchment-400 focus:outline-none"
-          placeholder="Jeremiah 2:19-22"
+          className="flex-1 rounded-lg border border-parchment-200 bg-white/80 px-3 py-2 text-sm focus:border-parchment-400 focus:outline-none"
+          placeholder="Type bible caption e.g Genesis 1:1"
           value={citation}
           onChange={(event) => setCitation(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              submit();
+            }
+          }}
         />
         <button
           className="rounded-full bg-ink-900 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white"
-          onClick={() => {
-            onSave(citation);
-            setCitation("");
-          }}
+          onClick={submit}
         >
           Save
         </button>

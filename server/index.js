@@ -203,12 +203,13 @@ app.post("/sections/:id/bibles", (req, res) => {
   const sectionId = Number(req.params.id);
   const citation = (req.body?.citation || "").trim();
   if (!citation) return res.status(400).send("Citation is required");
+  const normalizedCitation = normalizeCitation(citation);
 
   const result = db
     .prepare("INSERT INTO section_bibles (section_id, citation) VALUES (?, ?)")
-    .run(sectionId, citation);
+    .run(sectionId, normalizedCitation);
 
-  updateCachedVerses(result.lastInsertRowid, citation, "initial");
+  updateCachedVerses(result.lastInsertRowid, normalizedCitation, "initial");
   res.status(201).json({ id: result.lastInsertRowid });
 });
 
@@ -216,9 +217,13 @@ app.patch("/section-bibles/:id", (req, res) => {
   const bibleId = Number(req.params.id);
   const citation = (req.body?.citation || "").trim();
   if (!citation) return res.status(400).send("Citation is required");
+  const normalizedCitation = normalizeCitation(citation);
 
-  db.prepare("UPDATE section_bibles SET citation = ? WHERE id = ?").run(citation, bibleId);
-  updateCachedVerses(bibleId, citation, "initial");
+  db.prepare("UPDATE section_bibles SET citation = ? WHERE id = ?").run(
+    normalizedCitation,
+    bibleId
+  );
+  updateCachedVerses(bibleId, normalizedCitation, "initial");
   res.status(204).end();
 });
 
