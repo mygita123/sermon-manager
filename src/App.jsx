@@ -1,4 +1,18 @@
 import React, { useEffect, useLayoutEffect, useMemo, useState } from "react";
+import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { api } from "./lib/api";
 
 function InlineEdit({
@@ -189,6 +203,28 @@ function TrashIcon({ className = "" }) {
   );
 }
 
+function DragHandleIcon({ className = "" }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="8" cy="7" r="1.5" />
+      <circle cx="16" cy="7" r="1.5" />
+      <circle cx="8" cy="12" r="1.5" />
+      <circle cx="16" cy="12" r="1.5" />
+      <circle cx="8" cy="17" r="1.5" />
+      <circle cx="16" cy="17" r="1.5" />
+    </svg>
+  );
+}
+
 function MagnifierIcon({ className = "", variant = "in" }) {
   return (
     <svg
@@ -205,6 +241,24 @@ function MagnifierIcon({ className = "", variant = "in" }) {
       <path d="M16 16l4.2 4.2" />
       {variant === "in" ? <path d="M11 8v6M8 11h6" /> : <path d="M8 11h6" />}
     </svg>
+  );
+}
+
+function SortableSection({ id, disabled, children }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id,
+    disabled
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className={isDragging ? "opacity-70" : ""}>
+      {children({ attributes, listeners })}
+    </div>
   );
 }
 
@@ -332,6 +386,7 @@ export default function App() {
   const [presentationZoom, setPresentationZoom] = useState(1);
   const [creatingLesson, setCreatingLesson] = useState(false);
   const [loadingLesson, setLoadingLesson] = useState(false);
+  const [sectionOrder, setSectionOrder] = useState([]);
   const [titleEditSignal, setTitleEditSignal] = useState(0);
   const [confirmState, setConfirmState] = useState(null);
   const [toastItems, setToastItems] = useState([]);
@@ -362,6 +417,12 @@ export default function App() {
   const zoomOut = () => {
     setPresentationZoom((value) => Math.max(0.8, Number((value - 0.1).toFixed(2))));
   };
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 6 }
+    })
+  );
 
   const getVerseHighlights = (bibleId, verseNumber) => {
     const verseMap = highlightMap?.[bibleId];
@@ -430,6 +491,40 @@ export default function App() {
     selection.removeAllRanges();
   };
 
+  const orderedSections = useMemo(() => {
+    if (!selectedLesson) return [];
+    const map = new Map(selectedLesson.sections.map((section) => [section.id, section]));
+    const ordered = sectionOrder
+      .map((id) => map.get(id))
+      .filter((section) => section);
+    const missing = selectedLesson.sections.filter((section) => !sectionOrder.includes(section.id));
+    return [...ordered, ...missing];
+  }, [selectedLesson, sectionOrder]);
+
+  const persistSectionOrder = async (lessonId, nextOrder, previousOrder) => {
+    try {
+      await api.reorderSections(lessonId, nextOrder);
+    } catch (error) {
+      setSectionOrder(previousOrder);
+      pushToast(error.message || "Failed to reorder sections.", "error");
+    }
+  };
+
+  const handleSectionDragEnd = async (event) => {
+    if (!selectedLesson) return;
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    setSectionOrder((current) => {
+      const oldIndex = current.indexOf(active.id);
+      const newIndex = current.indexOf(over.id);
+      if (oldIndex === -1 || newIndex === -1) return current;
+      const next = arrayMove(current, oldIndex, newIndex);
+      persistSectionOrder(selectedLesson.id, next, current);
+      return next;
+    });
+  };
+
   const pushToast = (message, type = "success") => {
     const id = crypto.randomUUID();
     setToastItems((items) => [...items, { id, message, type }]);
@@ -481,6 +576,17 @@ export default function App() {
       loadLesson(selectedLessonId);
     }
   }, [selectedLessonId]);
+
+  useEffect(() => {
+    if (!selectedLesson) return;
+    setSectionOrder(selectedLesson.sections.map((section) => section.id));
+  }, [selectedLesson]);
+
+  useEffect(() => {
+    if (presentationMode && editMode) {
+      setEditMode(false);
+    }
+  }, [presentationMode, editMode]);
 
   useLayoutEffect(() => {
     if (!pendingScroll) return;
@@ -692,7 +798,10 @@ export default function App() {
             </button>
             <button
               className="rounded-full border border-ink-200 px-4 py-2 text-sm font-semibold text-ink-700 transition hover:border-ink-400"
-              onClick={() => setPresentationMode(true)}
+              onClick={() => {
+                setEditMode(false);
+                setPresentationMode(true);
+              }}
             >
               Presentation Mode
             </button>
@@ -777,89 +886,115 @@ export default function App() {
                 </div>
               </div>
 
-              <div className={presentationMode ? "space-y-4" : "space-y-10"}>
-                {selectedLesson.sections.map((section) => (
-                  <div
-                    key={section.id}
-                    data-section-id={section.id}
-                    ref={(node) => {
-                      if (node) {
-                        sectionRefs.current.set(section.id, node);
-                      } else {
-                        sectionRefs.current.delete(section.id);
-                      }
-                    }}
-                    className={`rounded-2xl bg-parchment-50/60 ${
-                      presentationMode ? "space-y-2 p-3" : "space-y-4 p-5"
-                    }`}
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      {(editMode || !presentationMode || section.subheading) && (
-                        <InlineEdit
-                          value={section.subheading}
-                          placeholder="Add subheading"
-                          className="font-display text-xl font-semibold text-ink-900"
-                          canEdit={editMode}
-                          onSave={(value) => handleSectionUpdate(section.id, { subheading: value })}
-                        />
-                      )}
-                      {editMode && (
-                        <button
-                          className="rounded-full border border-rose-300 p-2 text-rose-600 transition hover:border-rose-400 hover:text-rose-700"
-                          onClick={() => handleDeleteSection(section.id)}
-                          aria-label="Delete section"
-                        >
-                          <TrashIcon className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
-
-                    {(editMode || section.note) && (
-                      <InlineEdit
-                        value={section.note}
-                        placeholder="Add note"
-                        className="text-base text-ink-700"
-                        multiline
-                        canEdit={editMode}
-                        onSave={(value) => handleSectionUpdate(section.id, { note: value })}
-                      />
-                    )}
-
-                    <div className={presentationMode ? "space-y-2" : "space-y-4"}>
-                      {section.bibles.map((bible) => (
-                        <div key={bible.id} data-bible-id={bible.id} className="space-y-2">
-                          {editMode && (
-                            <InlineEdit
-                              value={bible.citation}
-                              placeholder="Bible citation"
-                              className="text-sm font-semibold uppercase tracking-wide text-parchment-700"
-                              canEdit={editMode}
-                              onSave={(value) => handleBibleUpdate(bible.id, value, section.id)}
-                            />
-                          )}
-                          <BibleBlock
-                            bible={{
-                              ...bible,
-                              canDelete: editMode,
-                              onDelete: (id) => handleDeleteBible(id, section.id)
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleSectionDragEnd}
+              >
+                <SortableContext
+                  items={sectionOrder.length ? sectionOrder : orderedSections.map((section) => section.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className={presentationMode ? "space-y-4" : "space-y-10"}>
+                    {orderedSections.map((section) => (
+                      <SortableSection key={section.id} id={section.id} disabled={!editMode}>
+                        {({ attributes, listeners }) => (
+                          <div
+                            data-section-id={section.id}
+                            ref={(node) => {
+                              if (node) {
+                                sectionRefs.current.set(section.id, node);
+                              } else {
+                                sectionRefs.current.delete(section.id);
+                              }
                             }}
-                            onExpand={handleBibleExpand}
-                            compact={presentationMode}
-                            getVerseHighlights={getVerseHighlights}
-                            onVerseSelect={handleVerseSelect}
-                          />
-                        </div>
-                      ))}
+                            className={`rounded-2xl bg-parchment-50/60 ${
+                              presentationMode ? "space-y-2 p-3" : "space-y-4 p-5"
+                            }`}
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <div className="flex flex-wrap items-center gap-2">
+                                {editMode && (
+                                  <button
+                                    className="rounded-full border border-parchment-300 p-2 text-parchment-700 transition hover:border-parchment-500 hover:text-parchment-900"
+                                    aria-label="Reorder section"
+                                    {...attributes}
+                                    {...listeners}
+                                  >
+                                    <DragHandleIcon className="h-4 w-4" />
+                                  </button>
+                                )}
+                                {(editMode || !presentationMode || section.subheading) && (
+                                  <InlineEdit
+                                    value={section.subheading}
+                                    placeholder="Add subheading"
+                                    className="font-display text-xl font-semibold text-ink-900"
+                                    canEdit={editMode}
+                                    onSave={(value) => handleSectionUpdate(section.id, { subheading: value })}
+                                  />
+                                )}
+                              </div>
+                              {editMode && (
+                                <button
+                                  className="rounded-full border border-rose-300 p-2 text-rose-600 transition hover:border-rose-400 hover:text-rose-700"
+                                  onClick={() => handleDeleteSection(section.id)}
+                                  aria-label="Delete section"
+                                >
+                                  <TrashIcon className="h-4 w-4" />
+                                </button>
+                              )}
+                            </div>
 
-                      {editMode && (
-                        <BibleAdder
-                          onSave={(citation) => handleAddBible(section.id, citation)}
-                        />
-                      )}
-                    </div>
+                            {(editMode || section.note) && (
+                              <InlineEdit
+                                value={section.note}
+                                placeholder="Add note"
+                                className="text-base text-ink-700"
+                                multiline
+                                canEdit={editMode}
+                                onSave={(value) => handleSectionUpdate(section.id, { note: value })}
+                              />
+                            )}
+
+                            <div className={presentationMode ? "space-y-2" : "space-y-4"}>
+                              {section.bibles.map((bible) => (
+                                <div key={bible.id} data-bible-id={bible.id} className="space-y-2">
+                                  {editMode && (
+                                    <InlineEdit
+                                      value={bible.citation}
+                                      placeholder="Bible citation"
+                                      className="text-sm font-semibold uppercase tracking-wide text-parchment-700"
+                                      canEdit={editMode}
+                                      onSave={(value) => handleBibleUpdate(bible.id, value, section.id)}
+                                    />
+                                  )}
+                                  <BibleBlock
+                                    bible={{
+                                      ...bible,
+                                      canDelete: editMode,
+                                      onDelete: (id) => handleDeleteBible(id, section.id)
+                                    }}
+                                    onExpand={handleBibleExpand}
+                                    compact={presentationMode}
+                                    getVerseHighlights={getVerseHighlights}
+                                    onVerseSelect={handleVerseSelect}
+                                  />
+                                </div>
+                              ))}
+
+                              {editMode && (
+                                <BibleAdder
+                                  onSave={(citation) => handleAddBible(section.id, citation)}
+                                />
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </SortableSection>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </SortableContext>
+              </DndContext>
 
               {editMode && (
                 <button

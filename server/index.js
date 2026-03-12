@@ -168,6 +168,47 @@ app.post("/lessons/:id/sections", (req, res) => {
   res.status(201).json({ id: result.lastInsertRowid });
 });
 
+app.patch("/lessons/:id/sections/order", (req, res) => {
+  const lessonId = Number(req.params.id);
+  const order = req.body?.order;
+  if (!Array.isArray(order) || !order.length) {
+    return res.status(400).send("Order is required");
+  }
+
+  const ids = order.map((id) => Number(id)).filter((id) => Number.isFinite(id));
+  if (ids.length !== order.length) {
+    return res.status(400).send("Order must be a list of section ids");
+  }
+
+  const existing = db
+    .prepare("SELECT id FROM lesson_sections WHERE lesson_id = ?")
+    .all(lessonId)
+    .map((row) => row.id);
+
+  if (existing.length !== ids.length) {
+    return res.status(400).send("Order does not match lesson sections");
+  }
+
+  const existingSet = new Set(existing);
+  if (!ids.every((id) => existingSet.has(id))) {
+    return res.status(400).send("Order contains invalid section ids");
+  }
+
+  const updateOrder = db.prepare(
+    "UPDATE lesson_sections SET section_order = ? WHERE id = ? AND lesson_id = ?"
+  );
+
+  const transaction = db.transaction(() => {
+    ids.forEach((sectionId, index) => {
+      updateOrder.run(index + 1, sectionId, lessonId);
+    });
+    db.prepare("UPDATE lessons SET updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(lessonId);
+  });
+
+  transaction();
+  res.status(204).end();
+});
+
 app.patch("/sections/:id", (req, res) => {
   const sectionId = Number(req.params.id);
   const existing = db.prepare("SELECT * FROM lesson_sections WHERE id = ?").get(sectionId);

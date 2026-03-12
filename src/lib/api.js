@@ -49,6 +49,12 @@ export const api = {
       body: JSON.stringify(payload)
     });
   },
+  reorderSections(lessonId, order) {
+    return request(`/lessons/${lessonId}/sections/order`, {
+      method: "PATCH",
+      body: JSON.stringify({ order })
+    });
+  },
   updateSection(sectionId, payload) {
     return request(`/sections/${sectionId}`, {
       method: "PATCH",
