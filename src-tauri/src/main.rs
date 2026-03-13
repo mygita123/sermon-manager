@@ -105,13 +105,30 @@ fn open_log_file(app: &tauri::App) -> Option<std::fs::File> {
   OpenOptions::new().create(true).append(true).open(path).ok()
 }
 
-fn needs_server_refresh(server_dest: &Path) -> bool {
+fn read_bundle_version(root: &Path) -> Option<String> {
+  let path = root.join("bundle-version.txt");
+  fs::read_to_string(path).ok().map(|value| value.trim().to_string())
+}
+
+fn needs_server_refresh(server_src: &Path, server_dest: &Path) -> bool {
   if !server_dest.exists() {
     return true;
   }
   let node_modules = server_dest.join("node_modules");
   let better_sqlite = node_modules.join("better-sqlite3");
-  !better_sqlite.exists()
+  if !better_sqlite.exists() {
+    return true;
+  }
+  if !server_dest.join("ai.js").exists() {
+    return true;
+  }
+  let src_version = read_bundle_version(server_src);
+  let dest_version = read_bundle_version(server_dest);
+  match (src_version, dest_version) {
+    (Some(src), Some(dest)) => src != dest,
+    (Some(_), None) => true,
+    _ => false,
+  }
 }
 
 fn resolve_resource_root(app: &tauri::App) -> PathBuf {
@@ -154,7 +171,7 @@ fn prepare_server_assets(app: &tauri::App) -> io::Result<PathBuf> {
   let data_dest_dir = app_data_dir.join("data");
   let data_dest = data_dest_dir.join("sermons.db");
 
-  if needs_server_refresh(&server_dest) {
+  if needs_server_refresh(&server_src, &server_dest) {
     if server_dest.exists() {
       fs::remove_dir_all(&server_dest)?;
     }

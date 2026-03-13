@@ -86,5 +86,37 @@ export const api = {
   getBibleVerses(bibleId, mode) {
     const query = mode ? `?mode=${mode}` : "";
     return request(`/section-bibles/${bibleId}/verses${query}`);
+  },
+  getAiStatus() {
+    return request("/ai/status");
+  },
+  downloadAiModel() {
+    return request("/ai/download", {
+      method: "POST"
+    });
+  },
+  getAiRecommendations(payload) {
+    return request("/ai/recommendations", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+  },
+  getAiSubheading(payload) {
+    return request("/ai/section-subheading", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+  },
+  getAiNotes(payload) {
+    return request("/ai/section-notes", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+  },
+  searchBible(payload) {
+    return request("/bible/search", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
   }
 };

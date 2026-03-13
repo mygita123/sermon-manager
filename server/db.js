@@ -16,6 +16,38 @@ function initSchema(db) {
   db.exec(schema);
 }
 
+function ensureBibleFts(db) {
+  const hasTable = db
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'bible_fts'")
+    .get();
+  if (!hasTable) {
+    db.exec(
+      "CREATE VIRTUAL TABLE IF NOT EXISTS bible_fts USING fts5(book, chapter, verse, text, content='bible', content_rowid='id')"
+    );
+  }
+
+  const bibleCount = db.prepare("SELECT COUNT(*) AS count FROM bible").get().count;
+  if (!bibleCount) return;
+
+  const ftsCount = db.prepare("SELECT COUNT(*) AS count FROM bible_fts").get().count;
+  const missingFtsRows = ftsCount !== bibleCount;
+
+  const sampleMatchMissing = (() => {
+    try {
+      const sample = db
+        .prepare("SELECT 1 FROM bible_fts WHERE bible_fts MATCH ? LIMIT 1")
+        .get("god");
+      return !sample;
+    } catch (error) {
+      return true;
+    }
+  })();
+
+  if (!ftsCount || missingFtsRows || sampleMatchMissing) {
+    db.exec("INSERT INTO bible_fts(bible_fts) VALUES('rebuild')");
+  }
+}
+
 function seedSample(db) {
   const count = db.prepare("SELECT COUNT(*) as count FROM lessons").get().count;
   if (count > 0) return;
@@ -55,6 +87,7 @@ function getDb() {
   db.pragma("foreign_keys = ON");
   initSchema(db);
   seedSample(db);
+  ensureBibleFts(db);
   return db;
 }
 

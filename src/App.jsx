@@ -22,7 +22,9 @@ function InlineEdit({
   className = "",
   multiline = false,
   canEdit = true,
-  editSignal
+  editSignal,
+  preserveLineBreaks = false,
+  renderAdornment
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value || "");
@@ -52,36 +54,47 @@ function InlineEdit({
   if (editing) {
     if (multiline) {
       return (
-        <textarea
-          className={`w-full rounded-lg border border-parchment-200 bg-white/80 p-3 text-base shadow-sm focus:border-parchment-400 focus:outline-none ${className}`}
-          rows={3}
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          onBlur={commit}
-          autoFocus
-        />
+        <div className="flex items-start gap-2">
+          <textarea
+            className={`w-full rounded-lg border border-parchment-200 bg-white/80 p-3 text-base shadow-sm focus:border-parchment-400 focus:outline-none ${className}`}
+            rows={3}
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            onBlur={commit}
+            autoFocus
+          />
+          {renderAdornment?.({ value: draft, commit })}
+        </div>
       );
     }
 
     return (
-      <input
-        className={`w-full rounded-lg border border-parchment-200 bg-white/80 p-2 text-base shadow-sm focus:border-parchment-400 focus:outline-none ${className}`}
-        value={draft}
-        onChange={(event) => setDraft(event.target.value)}
-        onBlur={commit}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") {
-            commit();
-          }
-        }}
-        autoFocus
-      />
+      <div className="flex items-center gap-2">
+        <input
+          className={`w-full rounded-lg border border-parchment-200 bg-white/80 p-2 text-base shadow-sm focus:border-parchment-400 focus:outline-none ${className}`}
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onBlur={commit}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              commit();
+            }
+          }}
+          autoFocus
+        />
+        {renderAdornment?.({ value: draft, commit })}
+      </div>
     );
   }
 
+  const viewStyle = preserveLineBreaks ? { whiteSpace: "pre-line" } : undefined;
+
   return (
     <div
-      className={`cursor-text transition hover:text-ink-900 ${className}`}
+      className={`cursor-text transition hover:text-ink-900 ${className} ${
+        preserveLineBreaks ? "whitespace-pre-line" : ""
+      }`}
+      style={viewStyle}
       onDoubleClick={() => setEditing(true)}
       title="Double-click to edit"
     >
@@ -244,6 +257,81 @@ function MagnifierIcon({ className = "", variant = "in" }) {
   );
 }
 
+function SettingsIcon({ className = "" }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.8 1.8 0 0 0 .36 1.98l.06.06a2 2 0 1 1-2.82 2.82l-.06-.06a1.8 1.8 0 0 0-1.98-.36 1.8 1.8 0 0 0-1.06 1.64V21a2 2 0 0 1-4 0v-.08a1.8 1.8 0 0 0-1.06-1.64 1.8 1.8 0 0 0-1.98.36l-.06.06a2 2 0 1 1-2.82-2.82l.06-.06A1.8 1.8 0 0 0 4.6 15a1.8 1.8 0 0 0-1.64-1.06H2.9a2 2 0 1 1 0-4h.06A1.8 1.8 0 0 0 4.6 9a1.8 1.8 0 0 0-.36-1.98l-.06-.06a2 2 0 1 1 2.82-2.82l.06.06A1.8 1.8 0 0 0 9 4.6a1.8 1.8 0 0 0 1.06-1.64V2.9a2 2 0 1 1 4 0v.06A1.8 1.8 0 0 0 15 4.6a1.8 1.8 0 0 0 1.98-.36l.06-.06a2 2 0 1 1 2.82 2.82l-.06.06A1.8 1.8 0 0 0 19.4 9a1.8 1.8 0 0 0 1.64 1.06H21a2 2 0 1 1 0 4h-.06A1.8 1.8 0 0 0 19.4 15Z" />
+    </svg>
+  );
+}
+
+function AiSparkIcon({ className = "" }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M5 4.5A2.5 2.5 0 0 1 7.5 2H19v17.5a2.5 2.5 0 0 1-2.5 2.5H5Z" />
+      <path d="M5 4.5A2.5 2.5 0 0 1 7.5 2H15v17.5A2.5 2.5 0 0 0 12.5 22H5Z" />
+      <path d="M5 8h10" />
+      <path d="M5 12h7" />
+      <path d="M5 16h6" />
+    </svg>
+  );
+}
+
+function SortIcon({ className = "" }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M7 4v16M7 4l-2.5 3M7 4l2.5 3" />
+      <path d="M17 20V4m0 16 2.5-3M17 20l-2.5-3" />
+    </svg>
+  );
+}
+
+function EyeToggleIcon({ className = "", hidden = false }) {
+  if (hidden) {
+    return (
+      <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.6">
+        <path d="M3 3l18 18" />
+        <path d="M10.58 10.58a3 3 0 0 0 3.84 3.84" />
+        <path d="M9.88 5.18A9.46 9.46 0 0 1 12 5c5 0 9 5 9 7-1.08 1.78-2.7 3.59-4.7 4.62M6.1 6.1A11.72 11.72 0 0 0 3 12c1 2 4 6 9 6a9.8 9.8 0 0 0 3.18-.52" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.6">
+      <path d="M1.5 12s3.5-7 10.5-7 10.5 7 10.5 7-3.5 7-10.5 7S1.5 12 1.5 12Z" />
+      <circle cx="12" cy="12" r="3.5" />
+    </svg>
+  );
+}
+
 function SortableSection({ id, disabled, children }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id,
@@ -383,7 +471,27 @@ export default function App() {
   const [selectedLesson, setSelectedLesson] = useState(null);
   const [editMode, setEditMode] = useState(false);
   const [presentationMode, setPresentationMode] = useState(false);
+  const [presentationAlt, setPresentationAlt] = useState(false);
   const [presentationZoom, setPresentationZoom] = useState(1);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [aiEnabled, setAiEnabled] = useState(() => {
+    try {
+      return localStorage.getItem("aiEnabled") === "true";
+    } catch (error) {
+      console.warn("Failed to read aiEnabled", error);
+      return false;
+    }
+  });
+  const [aiStatus, setAiStatus] = useState({
+    modelId: "",
+    modelDownloaded: false,
+    downloading: false,
+    loading: false,
+    error: null
+  });
+  const [aiRecommendations, setAiRecommendations] = useState({});
+  const [activeAiSectionId, setActiveAiSectionId] = useState(null);
+  const [lessonSort, setLessonSort] = useState("title-asc");
   const [creatingLesson, setCreatingLesson] = useState(false);
   const [loadingLesson, setLoadingLesson] = useState(false);
   const [sectionOrder, setSectionOrder] = useState([]);
@@ -409,6 +517,14 @@ export default function App() {
       console.warn("Failed to save bible highlights", error);
     }
   }, [highlightMap]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("aiEnabled", String(aiEnabled));
+    } catch (error) {
+      console.warn("Failed to save aiEnabled", error);
+    }
+  }, [aiEnabled]);
 
   const zoomIn = () => {
     setPresentationZoom((value) => Math.min(1.4, Number((value + 0.1).toFixed(2))));
@@ -533,6 +649,98 @@ export default function App() {
     }, 3200);
   };
 
+  const refreshAiStatus = async () => {
+    setAiStatus((prev) => ({ ...prev, loading: true, error: null }));
+    try {
+      const data = await api.getAiStatus();
+      setAiStatus({
+        modelId: data.modelId || "",
+        modelDownloaded: Boolean(data.modelDownloaded),
+        downloading: Boolean(data.downloading),
+        loading: false,
+        error: null
+      });
+    } catch (error) {
+      setAiStatus((prev) => ({
+        ...prev,
+        loading: false,
+        error: error.message || "Failed to check AI status."
+      }));
+    }
+  };
+
+  const handleDownloadModel = async () => {
+    setAiStatus((prev) => ({ ...prev, downloading: true, error: null }));
+    try {
+      const data = await api.downloadAiModel();
+      setAiStatus({
+        modelId: data.modelId || "",
+        modelDownloaded: Boolean(data.modelDownloaded),
+        downloading: Boolean(data.downloading),
+        loading: false,
+        error: null
+      });
+      if (data.modelDownloaded) {
+        pushToast("AI model downloaded.", "success");
+      }
+    } catch (error) {
+      setAiStatus((prev) => ({
+        ...prev,
+        downloading: false,
+        error: error.message || "Failed to download model."
+      }));
+      pushToast(error.message || "Failed to download model.", "error");
+    }
+  };
+
+  const handleFetchRecommendations = async (section) => {
+    if (!selectedLesson) return;
+    setActiveAiSectionId(section.id);
+    setAiRecommendations((prev) => ({
+      ...prev,
+      [section.id]: {
+        ...(prev[section.id] || {}),
+        loading: true,
+        error: null
+      }
+    }));
+
+    try {
+      const data = await api.getAiRecommendations({
+        lessonTitle: selectedLesson.title,
+        sectionSubheading: section.subheading,
+        sectionNote: section.note,
+        limit: 8
+      });
+      const existing = new Set(
+        (section.bibles || []).map((bible) => (bible.citation || "").toLowerCase())
+      );
+      const results = (data.results || []).filter(
+        (item) => !existing.has((item.citation || "").toLowerCase())
+      );
+      setAiRecommendations((prev) => ({
+        ...prev,
+        [section.id]: {
+          loading: false,
+          mode: data.mode,
+          results,
+          query: data.query || "",
+          error: null
+        }
+      }));
+    } catch (error) {
+      setAiRecommendations((prev) => ({
+        ...prev,
+        [section.id]: {
+          ...(prev[section.id] || {}),
+          loading: false,
+          error: error.message || "Failed to fetch recommendations."
+        }
+      }));
+      pushToast(error.message || "Failed to fetch recommendations.", "error");
+    }
+  };
+
   const selectedLessonTitle = selectedLesson?.title || "Select a lesson";
 
   const refreshLessons = async (preferredId) => {
@@ -572,9 +780,22 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    refreshAiStatus();
+  }, []);
+
+  useEffect(() => {
     if (selectedLessonId) {
       loadLesson(selectedLessonId);
     }
+  }, [selectedLessonId]);
+
+  useEffect(() => {
+    // reset AI state when switching lessons
+    setActiveAiSectionId(null);
+  }, [selectedLessonId]);
+
+  useEffect(() => {
+    setActiveAiSectionId(null);
   }, [selectedLessonId]);
 
   useEffect(() => {
@@ -587,6 +808,20 @@ export default function App() {
       setEditMode(false);
     }
   }, [presentationMode, editMode]);
+
+  useEffect(() => {
+    setAiRecommendations({});
+  }, [selectedLessonId]);
+
+  useEffect(() => {
+    setAiRecommendations({});
+  }, [selectedLessonId]);
+
+  useEffect(() => {
+    if (aiEnabled) {
+      refreshAiStatus();
+    }
+  }, [aiEnabled]);
 
   useLayoutEffect(() => {
     if (!pendingScroll) return;
@@ -670,6 +905,22 @@ export default function App() {
     }
   };
 
+  const handleAddRecommendation = async (sectionId, citation) => {
+    if (!citation) return;
+    await handleAddBible(sectionId, citation);
+    setAiRecommendations((prev) => {
+      const current = prev[sectionId];
+      if (!current || !Array.isArray(current.results)) return prev;
+      return {
+        ...prev,
+        [sectionId]: {
+          ...current,
+          results: current.results.filter((item) => item.citation !== citation)
+        }
+      };
+    });
+  };
+
   const handleBibleUpdate = async (bibleId, citation, sectionId) => {
     if (!citation) return;
     try {
@@ -736,6 +987,9 @@ export default function App() {
       await api.deleteSection(sectionId);
       await loadLesson(selectedLesson.id, { showLoading: false });
       setPendingScroll(nextSection ? { sectionId: nextSection.id } : null);
+      if (activeAiSectionId === sectionId) {
+        setActiveAiSectionId(null);
+      }
       pushToast("Section deleted.", "success");
     } catch (error) {
       pushToast(error.message || "Failed to delete section.", "error");
@@ -774,8 +1028,35 @@ export default function App() {
   };
 
   const sortedLessons = useMemo(() => {
-    return [...lessons].sort((a, b) => (a.title || "").localeCompare(b.title || ""));
-  }, [lessons]);
+    const list = [...lessons];
+    const getDate = (lesson) => {
+      const value = lesson.created_at || lesson.createdAt || lesson.updated_at || lesson.updatedAt;
+      const time = value ? new Date(value).getTime() : 0;
+      return Number.isFinite(time) ? time : 0;
+    };
+
+    switch (lessonSort) {
+      case "title-desc":
+        list.sort((a, b) => (b.title || "").localeCompare(a.title || ""));
+        break;
+      case "created-asc":
+        list.sort((a, b) => getDate(a) - getDate(b));
+        break;
+      case "created-desc":
+        list.sort((a, b) => getDate(b) - getDate(a));
+        break;
+      case "title-asc":
+      default:
+        list.sort((a, b) => (a.title || "").localeCompare(b.title || ""));
+        break;
+    }
+    return list;
+  }, [lessons, lessonSort]);
+
+  const activeAiSection = useMemo(() => {
+    if (!activeAiSectionId || !selectedLesson) return null;
+    return selectedLesson.sections?.find((section) => section.id === activeAiSectionId) || null;
+  }, [activeAiSectionId, selectedLesson]);
 
   return (
     <div className="min-h-screen">
@@ -805,6 +1086,16 @@ export default function App() {
             >
               Presentation Mode
             </button>
+            <button
+              className="rounded-full border border-parchment-300 p-2 text-parchment-700 transition hover:border-parchment-500 hover:text-parchment-900"
+              onClick={() => {
+                setSettingsOpen(true);
+                refreshAiStatus();
+              }}
+              aria-label="Settings"
+            >
+              <SettingsIcon className="h-4 w-4" />
+            </button>
           </div>
         </header>
       )}
@@ -831,24 +1122,32 @@ export default function App() {
           >
             Minimize
           </button>
+          <button
+            className="inline-flex items-center gap-2 rounded-full border border-ink-200 bg-white/90 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-ink-700 shadow-lift transition hover:border-ink-400"
+            onClick={() => setPresentationAlt((value) => !value)}
+            title="Alternate presentation layout"
+          >
+            <MagnifierIcon className="h-4 w-4" variant="in" />
+            {presentationAlt ? "Standard View" : "Max View"}
+          </button>
         </div>
       )}
 
       <div
         className={`grid min-h-[calc(100vh-80px)] grid-cols-1 ${
-          presentationMode ? "gap-3 bg-parchment-50 p-3" : "gap-6 p-6 lg:grid-cols-[1fr_280px]"
+          presentationMode ? "gap-3 bg-parchment-50 p-6" : "gap-6 p-6 lg:grid-cols-[1fr_340px]"
         }`}
       >
         <main
           className={`fade-in rounded-3xl border border-parchment-200 bg-white/80 shadow-lift ${
-            presentationMode ? "p-3 lg:col-span-2" : "p-6"
+            presentationMode ? "mx-auto w-full max-w-6xl p-6 lg:col-span-2 lg:pl-10" : "p-6"
           }`}
           style={presentationMode ? { zoom: presentationZoom } : undefined}
         >
           {loadingLesson ? (
             <div className="text-ink-500">Loading lesson...</div>
           ) : selectedLesson ? (
-            <div className={presentationMode ? "space-y-3" : "space-y-8"}>
+            <div className={presentationMode ? (presentationAlt ? "space-y-6" : "space-y-3") : "space-y-8"}>
               <div
                 className={
                   presentationMode
@@ -891,107 +1190,135 @@ export default function App() {
                 collisionDetection={closestCenter}
                 onDragEnd={handleSectionDragEnd}
               >
-                <SortableContext
+        <SortableContext
                   items={sectionOrder.length ? sectionOrder : orderedSections.map((section) => section.id)}
                   strategy={verticalListSortingStrategy}
                 >
-                  <div className={presentationMode ? "space-y-4" : "space-y-10"}>
-                    {orderedSections.map((section) => (
-                      <SortableSection key={section.id} id={section.id} disabled={!editMode}>
-                        {({ attributes, listeners }) => (
-                          <div
-                            data-section-id={section.id}
-                            ref={(node) => {
-                              if (node) {
-                                sectionRefs.current.set(section.id, node);
-                              } else {
-                                sectionRefs.current.delete(section.id);
-                              }
-                            }}
+                  <div className={presentationMode ? "space-y-3" : "space-y-6"}>
+                    {orderedSections.map((section, index) => {
+                      return (
+                        <SortableSection key={section.id} id={section.id} disabled={!editMode}>
+                          {({ attributes, listeners }) => (
+                            <div
+                              data-section-id={section.id}
+                              ref={(node) => {
+                                if (node) {
+                                  sectionRefs.current.set(section.id, node);
+                                } else {
+                                  sectionRefs.current.delete(section.id);
+                                }
+                              }}
                             className={`rounded-2xl bg-parchment-50/60 ${
-                              presentationMode ? "space-y-2 p-3" : "space-y-4 p-5"
+                              presentationMode ? "space-y-2 p-2.5" : "space-y-3 p-4"
                             }`}
-                          >
-                            <div className="flex flex-wrap items-center justify-between gap-3">
+                            >
+                              <div className="flex flex-wrap items-center justify-between gap-3">
                               <div className="flex flex-wrap items-center gap-2">
+                                <span className="rounded-full bg-parchment-200 px-3 py-1 text-xs font-semibold text-parchment-800">
+                                  {index + 1}
+                                </span>
                                 {editMode && (
                                   <button
                                     className="rounded-full border border-parchment-300 p-2 text-parchment-700 transition hover:border-parchment-500 hover:text-parchment-900"
                                     aria-label="Reorder section"
                                     {...attributes}
-                                    {...listeners}
-                                  >
-                                    <DragHandleIcon className="h-4 w-4" />
-                                  </button>
-                                )}
-                                {(editMode || !presentationMode || section.subheading) && (
+                                      {...listeners}
+                                    >
+                                      <DragHandleIcon className="h-4 w-4" />
+                                    </button>
+                                  )}
+                                  {(editMode || !presentationMode || section.subheading) && (
+                                    <InlineEdit
+                                      value={section.subheading}
+                                      placeholder="Add subheading"
+                                      className="font-display text-xl font-semibold text-ink-900"
+                                      canEdit={editMode}
+                                      onSave={(value) => handleSectionUpdate(section.id, { subheading: value })}
+                                    />
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  {aiEnabled && editMode && (
+                                    <button
+                                      className="rounded-full border border-parchment-300 p-2 text-parchment-700 transition hover:border-parchment-500 hover:text-parchment-900"
+                                      onClick={() => {
+                                        setActiveAiSectionId(section.id);
+                                        const rec = aiRecommendations[section.id];
+                                        if (!rec || ((!rec.results || !rec.results.length) && !rec.loading)) {
+                                          handleFetchRecommendations(section);
+                                        }
+                                      }}
+                                      aria-label="Show AI recommendations"
+                                    >
+                                      <AiSparkIcon className="h-4 w-4" />
+                                    </button>
+                                  )}
+                                  {editMode && (
+                                    <button
+                                      className="rounded-full border border-rose-300 p-2 text-rose-600 transition hover-border-rose-400 hover:text-rose-700"
+                                      onClick={() => handleDeleteSection(section.id)}
+                                      aria-label="Delete section"
+                                    >
+                                      <TrashIcon className="h-4 w-4" />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+
+                              {(editMode || section.note) &&
+                                (editMode ? (
                                   <InlineEdit
-                                    value={section.subheading}
-                                    placeholder="Add subheading"
-                                    className="font-display text-xl font-semibold text-ink-900"
+                                    value={section.note}
+                                    placeholder="Add note"
+                                    className="text-base text-ink-700"
+                                    multiline
+                                    preserveLineBreaks
                                     canEdit={editMode}
-                                    onSave={(value) => handleSectionUpdate(section.id, { subheading: value })}
+                                    onSave={(value) => handleSectionUpdate(section.id, { note: value })}
+                                  />
+                                ) : (
+                                  <div className="text-base text-ink-700 whitespace-pre-line">
+                                    {section.note || "No note added."}
+                                  </div>
+                                ))}
+
+                              <div className={presentationMode ? "space-y-2" : "space-y-4"}>
+                                {section.bibles.map((bible) => (
+                                  <div key={bible.id} data-bible-id={bible.id} className="space-y-2">
+                                    {editMode && (
+                                      <InlineEdit
+                                        value={bible.citation}
+                                        placeholder="Bible citation"
+                                        className="text-sm font-semibold uppercase tracking-wide text-parchment-700"
+                                        canEdit={editMode}
+                                        onSave={(value) => handleBibleUpdate(bible.id, value, section.id)}
+                                      />
+                                    )}
+                                    <BibleBlock
+                                      bible={{
+                                        ...bible,
+                                        canDelete: editMode,
+                                        onDelete: (id) => handleDeleteBible(id, section.id)
+                                      }}
+                                      onExpand={handleBibleExpand}
+                                      compact={presentationMode}
+                                      getVerseHighlights={getVerseHighlights}
+                                      onVerseSelect={handleVerseSelect}
+                                    />
+                                  </div>
+                                ))}
+
+                                {editMode && (
+                                  <BibleAdder
+                                    onSave={(citation) => handleAddBible(section.id, citation)}
                                   />
                                 )}
                               </div>
-                              {editMode && (
-                                <button
-                                  className="rounded-full border border-rose-300 p-2 text-rose-600 transition hover:border-rose-400 hover:text-rose-700"
-                                  onClick={() => handleDeleteSection(section.id)}
-                                  aria-label="Delete section"
-                                >
-                                  <TrashIcon className="h-4 w-4" />
-                                </button>
-                              )}
                             </div>
-
-                            {(editMode || section.note) && (
-                              <InlineEdit
-                                value={section.note}
-                                placeholder="Add note"
-                                className="text-base text-ink-700"
-                                multiline
-                                canEdit={editMode}
-                                onSave={(value) => handleSectionUpdate(section.id, { note: value })}
-                              />
-                            )}
-
-                            <div className={presentationMode ? "space-y-2" : "space-y-4"}>
-                              {section.bibles.map((bible) => (
-                                <div key={bible.id} data-bible-id={bible.id} className="space-y-2">
-                                  {editMode && (
-                                    <InlineEdit
-                                      value={bible.citation}
-                                      placeholder="Bible citation"
-                                      className="text-sm font-semibold uppercase tracking-wide text-parchment-700"
-                                      canEdit={editMode}
-                                      onSave={(value) => handleBibleUpdate(bible.id, value, section.id)}
-                                    />
-                                  )}
-                                  <BibleBlock
-                                    bible={{
-                                      ...bible,
-                                      canDelete: editMode,
-                                      onDelete: (id) => handleDeleteBible(id, section.id)
-                                    }}
-                                    onExpand={handleBibleExpand}
-                                    compact={presentationMode}
-                                    getVerseHighlights={getVerseHighlights}
-                                    onVerseSelect={handleVerseSelect}
-                                  />
-                                </div>
-                              ))}
-
-                              {editMode && (
-                                <BibleAdder
-                                  onSave={(citation) => handleAddBible(section.id, citation)}
-                                />
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </SortableSection>
-                    ))}
+                          )}
+                        </SortableSection>
+                      );
+                    })}
                   </div>
                 </SortableContext>
               </DndContext>
@@ -1005,17 +1332,66 @@ export default function App() {
                 </button>
               )}
             </div>
-          ) : (
-            <div className="text-ink-500">Select or add a lesson to begin.</div>
-          )}
-        </main>
+        ) : (
+          <div className="text-ink-500">Select or add a lesson to begin.</div>
+        )}
+      </main>
 
-        {!presentationMode && (
-          <aside className="fade-in rounded-3xl border border-parchment-200 bg-white/70 p-5 shadow-lift">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-parchment-600">
-                Lessons
-              </h2>
+      {aiEnabled && !presentationMode && activeAiSection && (
+        <div className="fixed inset-y-0 right-0 z-40 flex justify-end pointer-events-none">
+          <div className="pointer-events-auto flex h-full w-full max-w-md flex-col border-l border-parchment-200 bg-white/95 p-4 shadow-2xl">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-parchment-600">
+                  Suggested verses based on the subheading
+                </p>
+                <h3 className="font-display text-lg font-semibold text-ink-900">
+                  {activeAiSection.subheading || activeAiSection.title || "Section"}
+                </h3>
+                <p className="text-xs text-ink-500 truncate">{selectedLessonTitle}</p>
+              </div>
+              <button
+                className="rounded-full border border-parchment-300 p-2 text-parchment-700 transition hover:border-parchment-500 hover:text-parchment-900"
+                onClick={() => setActiveAiSectionId(null)}
+                aria-label="Close AI recommendations"
+              >
+                <span className="block h-4 w-4 text-center leading-4">X</span>
+              </button>
+            </div>
+
+            <div className="mt-4 flex-1 overflow-y-auto">
+              <AiPanel
+                status={aiStatus}
+                recommendation={aiRecommendations[activeAiSectionId]}
+                onDownload={handleDownloadModel}
+                onRequest={() => handleFetchRecommendations(activeAiSection)}
+                onAdd={(citation) => handleAddRecommendation(activeAiSection.id, citation)}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!presentationMode && (
+        <aside className="fade-in rounded-3xl border border-parchment-200 bg-white/70 p-4 shadow-lift">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-parchment-600">
+              Lessons
+            </h2>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 rounded-full border border-parchment-300 bg-white/80 px-2 py-1 text-xs text-ink-700">
+                <SortIcon className="h-4 w-4" />
+                <select
+                  className="bg-transparent text-xs font-semibold uppercase tracking-wide text-ink-700 focus:outline-none"
+                  value={lessonSort}
+                  onChange={(e) => setLessonSort(e.target.value)}
+                >
+                  <option value="title-asc">Title A-Z</option>
+                  <option value="title-desc">Title Z-A</option>
+                  <option value="created-desc">Newest</option>
+                  <option value="created-asc">Oldest</option>
+                </select>
+              </div>
               <button
                 className="rounded-full bg-parchment-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white"
                 onClick={() => setCreatingLesson(true)}
@@ -1023,6 +1399,7 @@ export default function App() {
                 Add New
               </button>
             </div>
+          </div>
 
             {creatingLesson && (
               <LessonCreator
@@ -1031,11 +1408,11 @@ export default function App() {
               />
             )}
 
-            <div className="mt-4 max-h-[70vh] space-y-2 overflow-y-auto pr-1 scrollbar-thin">
+            <div className="mt-3 max-h-[70vh] space-y-1 overflow-y-auto pr-1 scrollbar-thin">
               {sortedLessons.map((lesson) => (
                 <button
                   key={lesson.id}
-                  className={`w-full rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition ${
+                  className={`w-full rounded-2xl border px-3 py-2 text-left text-sm font-semibold transition ${
                     lesson.id === selectedLessonId
                       ? "border-parchment-400 bg-parchment-100 text-ink-900"
                       : "border-transparent bg-white/70 text-ink-600 hover:border-parchment-200"
@@ -1049,6 +1426,80 @@ export default function App() {
           </aside>
         )}
       </div>
+
+      {settingsOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/40 p-6 backdrop-blur"
+          onClick={() => setSettingsOpen(false)}
+        >
+          <div
+            className="w-full max-w-lg rounded-3xl border border-parchment-200 bg-white/95 p-6 shadow-lift"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-parchment-600">
+              Settings
+            </p>
+            <h3 className="mt-2 font-display text-2xl font-semibold text-ink-900">
+              Preferences
+            </h3>
+
+            <div className="mt-5 space-y-4">
+              <div className="rounded-2xl border border-parchment-200 bg-parchment-50/70 p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-semibold text-ink-900">
+                      Enable AI recommendations
+                    </p>
+                    <p className="mt-1 text-xs text-ink-500">
+                      Uses a local model to suggest relevant verses. You control when the
+                      download happens.
+                    </p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    className="mt-1 h-5 w-5 accent-parchment-700"
+                    checked={aiEnabled}
+                    onChange={(event) => setAiEnabled(event.target.checked)}
+                  />
+                </div>
+
+                <div className="mt-4 flex flex-wrap items-center gap-2">
+                  <button
+                    className="rounded-full border border-parchment-300 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-parchment-700 transition hover:border-parchment-500 disabled:cursor-not-allowed disabled:opacity-60"
+                    onClick={handleDownloadModel}
+                    disabled={!aiEnabled || aiStatus.modelDownloaded || aiStatus.downloading}
+                  >
+                    {aiStatus.modelDownloaded
+                      ? "Model Ready"
+                      : aiStatus.downloading
+                        ? "Downloading..."
+                        : "Download Model"}
+                  </button>
+                  <span className="text-xs text-ink-500">
+                    Model: {aiStatus.modelId || "BAAI/bge-small-en-v1.5"}
+                  </span>
+                </div>
+
+                {!aiStatus.modelDownloaded && (
+                  <p className="mt-2 text-xs text-ink-500">
+                    Keyword fallback stays available when the model is not installed.
+                  </p>
+                )}
+                {aiStatus.error && <p className="mt-2 text-xs text-rose-600">{aiStatus.error}</p>}
+              </div>
+            </div>
+
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                className="rounded-full border border-parchment-300 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-parchment-700"
+                onClick={() => setSettingsOpen(false)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {confirmState && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/40 p-6 backdrop-blur">
@@ -1094,6 +1545,98 @@ export default function App() {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+function AiPanel({ status, recommendation, onDownload, onRequest, onAdd, onToggle, isOpen = true }) {
+  const isLoading = recommendation?.loading;
+  const results = Array.isArray(recommendation?.results) ? recommendation.results : [];
+  const modeLabel = recommendation?.mode === "ai" ? "AI ranked" : "Keyword fallback";
+
+  return (
+    <div className="rounded-2xl border border-parchment-200 bg-white/70 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-parchment-600">
+            Suggested verses based on the subheading
+          </p>
+          <p className="text-xs text-ink-500">
+            {status.modelDownloaded
+              ? "Model ready for smarter matches."
+              : "Model not downloaded. Keyword fallback available."}
+          </p>
+          {recommendation?.mode && (
+            <span className="mt-1 inline-block rounded-full border border-parchment-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-parchment-600">
+              {modeLabel}
+            </span>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {onToggle && (
+            <button
+              className="rounded-full border border-parchment-300 p-2 text-parchment-700 transition hover:border-parchment-500 hover:text-parchment-900"
+              onClick={onToggle}
+              aria-label={isOpen ? "Hide AI recommendations" : "Show AI recommendations"}
+            >
+              <EyeToggleIcon hidden={!isOpen} className="h-4 w-4" />
+            </button>
+          )}
+          {!status.modelDownloaded && (
+            <button
+              className="rounded-full border border-parchment-300 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-parchment-700 transition hover:border-parchment-500 disabled:cursor-not-allowed disabled:opacity-60"
+              onClick={onDownload}
+              disabled={status.downloading || status.loading}
+            >
+              {status.downloading ? "Downloading..." : "Download model"}
+            </button>
+          )}
+          <button
+            className="rounded-full bg-ink-900 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-70"
+            onClick={onRequest}
+            disabled={isLoading}
+          >
+            {isLoading ? "Finding..." : "Suggest verses"}
+          </button>
+        </div>
+      </div>
+
+      {status.error && <p className="mt-2 text-xs text-rose-600">{status.error}</p>}
+      {recommendation?.error && (
+        <p className="mt-2 text-xs text-rose-600">{recommendation.error}</p>
+      )}
+
+      {results.length ? (
+        <div className="mt-3 space-y-2">
+          {results.map((item) => (
+            <div
+              key={item.id || item.citation}
+              className="rounded-xl border border-parchment-200 bg-white/80 p-2"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold uppercase tracking-wide text-parchment-700">
+                    {item.citation}
+                  </p>
+                  <p className="text-sm leading-snug text-ink-700">{item.text}</p>
+                </div>
+                <button
+                  className="rounded-full border border-parchment-300 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-parchment-700 transition hover:border-parchment-500"
+                  onClick={() => onAdd(item.citation)}
+                >
+                  Add
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        !isLoading && (
+          <p className="mt-3 text-xs text-ink-500">
+            No suggestions yet. Click "Suggest verses" to populate.
+          </p>
+        )
+      )}
     </div>
   );
 }

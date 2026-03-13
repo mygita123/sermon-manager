@@ -196,7 +196,7 @@ function parseReference(input) {
   if (!normalized) return null;
 
   const match = normalized.match(
-    /^(\d)?\s*([a-z][a-z.\s]*?)\s+(\d+)(?::(\d+)(?:-(\d+))?)?$/
+    /^(\d)?\s*([a-z][a-z.\s]*?)\s+(\d+)(?::(\d+)(?:-(\d+))?)?(?:,\s*(\d+))?$/
   );
   if (!match) return null;
 
@@ -205,6 +205,7 @@ function parseReference(input) {
   const chapter = Number(match[3]);
   const verseStart = match[4] ? Number(match[4]) : null;
   const verseEnd = match[5] ? Number(match[5]) : null;
+  const commaVerse = match[6] ? Number(match[6]) : null;
 
   if (!chapter || Number.isNaN(chapter)) return null;
 
@@ -213,7 +214,7 @@ function parseReference(input) {
     bookNameRaw,
     chapter,
     verseStart,
-    verseEnd,
+    verseEnd: verseEnd ?? commaVerse,
     normalized
   };
 }

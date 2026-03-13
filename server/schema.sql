@@ -44,3 +44,12 @@ CREATE TABLE IF NOT EXISTS bible (
 );
 
 CREATE INDEX IF NOT EXISTS idx_book_chapter_verse ON bible(book, chapter, verse);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS bible_fts USING fts5(
+  book,
+  chapter,
+  verse,
+  text,
+  content='bible',
+  content_rowid='id'
+);

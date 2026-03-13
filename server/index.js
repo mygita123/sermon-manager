@@ -1,7 +1,22 @@
+const path = require("path");
+require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 const express = require("express");
 const cors = require("cors");
 const { getDb } = require("./db");
 const { parseCitation, normalizeCitation } = require("./verseParser");
+const {
+  MODEL_ID,
+  isModelReady,
+  isDownloading,
+  downloadModel,
+  recommendVerses,
+  suggestSubheadingCandidates,
+  suggestSubheadingGemini,
+  suggestSubheadingOpenRouter,
+  suggestNotesGemini,
+  suggestNotesOpenRouter,
+  suggestNotesFallback
+} = require("./ai");
 
 const PORT = process.env.SERMON_API_PORT || 3927;
 
@@ -112,6 +127,137 @@ function hydrateLesson(lessonId) {
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
+});
+
+app.get("/ai/status", (_req, res) => {
+  res.json({
+    modelId: MODEL_ID,
+    modelDownloaded: isModelReady(),
+    downloading: isDownloading()
+  });
+});
+
+app.post("/ai/download", async (_req, res) => {
+  if (isModelReady()) {
+    return res.json({ modelId: MODEL_ID, modelDownloaded: true, downloading: false });
+  }
+  if (isDownloading()) {
+    return res.json({ modelId: MODEL_ID, modelDownloaded: false, downloading: true });
+  }
+  try {
+    await downloadModel();
+    res.json({ modelId: MODEL_ID, modelDownloaded: true, downloading: false });
+  } catch (error) {
+    res.status(500).send(error.message || "Failed to download model");
+  }
+});
+
+app.post("/ai/recommendations", async (req, res) => {
+  const lessonTitle = (req.body?.lessonTitle || "").trim();
+  const sectionSubheading = (req.body?.sectionSubheading || "").trim();
+  const sectionNote = (req.body?.sectionNote || "").trim();
+  const queryText = [lessonTitle, sectionSubheading, sectionNote].filter(Boolean).join(" ");
+  if (!queryText) {
+    return res.status(400).send("Provide lesson title, section subtitle, or note.");
+  }
+
+  const limitRaw = Number(req.body?.limit || 8);
+  const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 20) : 8;
+
+  try {
+    const recommendations = await recommendVerses(db, queryText, limit);
+    res.json({ ...recommendations, query: queryText });
+  } catch (error) {
+    res.status(500).send(error.message || "Failed to generate recommendations");
+  }
+});
+
+app.post("/ai/section-subheading", (req, res) => {
+  const verses = Array.isArray(req.body?.verses) ? req.body.verses : [];
+  const lessonTitle = (req.body?.lessonTitle || "").trim();
+  if (!verses.length) {
+    return res.status(400).send("Provide at least one verse to summarize.");
+  }
+
+  const openRouterKey = process.env.OPEN_ROUTER_KEY;
+  const geminiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+
+  (async () => {
+    if (openRouterKey) {
+      try {
+        const suggestions = await suggestSubheadingOpenRouter({ verses, lessonTitle, apiKey: openRouterKey });
+        if (suggestions.length) {
+          return res.json({ suggestions, mode: "openrouter" });
+        }
+      } catch (error) {
+        console.warn("OpenRouter subheading failed:", error.message);
+      }
+    }
+
+    if (geminiKey) {
+      try {
+        const suggestions = await suggestSubheadingGemini({ verses, lessonTitle, apiKey: geminiKey });
+        if (suggestions.length) {
+          return res.json({ suggestions, mode: "gemini" });
+        }
+      } catch (error) {
+        console.warn("Gemini subheading failed:", error.message);
+      }
+    }
+
+    const fallback = suggestSubheadingCandidates(verses, 5);
+    res.json({ suggestions: fallback, mode: "fallback" });
+  })();
+});
+
+app.post("/ai/section-notes", (req, res) => {
+  const verses = Array.isArray(req.body?.verses) ? req.body.verses : [];
+  const lessonTitle = (req.body?.lessonTitle || "").trim();
+  if (!verses.length) {
+    return res.status(400).send("Provide at least one verse to summarize.");
+  }
+  const openRouterKey = process.env.OPEN_ROUTER_KEY;
+  const geminiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+  (async () => {
+    if (openRouterKey) {
+      try {
+        const suggestion = await suggestNotesOpenRouter({ verses, lessonTitle, apiKey: openRouterKey });
+        if (suggestion) {
+          return res.json({ suggestion, mode: "openrouter" });
+        }
+      } catch (error) {
+        console.warn("OpenRouter notes failed:", error.message);
+      }
+    }
+    if (geminiKey) {
+      try {
+        const suggestion = await suggestNotesGemini({ verses, lessonTitle, apiKey: geminiKey });
+        if (suggestion) {
+          return res.json({ suggestion, mode: "gemini" });
+        }
+      } catch (error) {
+        console.warn("Gemini notes failed:", error.message);
+      }
+    }
+    const fallback = suggestNotesFallback(verses, lessonTitle);
+    res.json({ suggestion: fallback, mode: "fallback" });
+  })();
+});
+
+app.post("/bible/search", async (req, res) => {
+  const queryText = (req.body?.query || "").trim();
+  const limitRaw = Number(req.body?.limit || 8);
+  const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 20) : 8;
+  if (!queryText) {
+    return res.status(400).send("Query is required");
+  }
+  try {
+    const { results, mode } = await recommendVerses(db, queryText, limit);
+    res.json({ results, mode, query: queryText });
+  } catch (error) {
+    console.error("Bible search failed:", error);
+    res.status(500).send(error.message || "Failed to search bible");
+  }
 });
 
 app.get("/lessons", (_req, res) => {
