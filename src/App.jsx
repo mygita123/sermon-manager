@@ -257,6 +257,25 @@ function MagnifierIcon({ className = "", variant = "in" }) {
   );
 }
 
+function BookIcon({ className = "" }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M6 4h9.5a2.5 2.5 0 0 1 2.5 2.5V18" />
+      <path d="M6 4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h11.5" />
+      <path d="M6 8h9.5" />
+    </svg>
+  );
+}
+
 function SettingsIcon({ className = "" }) {
   return (
     <svg
@@ -474,6 +493,8 @@ export default function App() {
   const [presentationAlt, setPresentationAlt] = useState(false);
   const [presentationZoom, setPresentationZoom] = useState(1);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [libraryQuery, setLibraryQuery] = useState("");
   const [aiEnabled, setAiEnabled] = useState(() => {
     try {
       return localStorage.getItem("aiEnabled") === "true";
@@ -1060,10 +1081,10 @@ export default function App() {
 
   return (
     <div className="min-h-screen">
-      {!presentationMode && (
+          {!presentationMode && (
         <header className="flex items-center justify-between border-b border-parchment-200 bg-white/80 px-6 py-4 backdrop-blur">
           <div>
-            <p className="text-sm uppercase tracking-[0.3em] text-parchment-600">Sermon Manager</p>
+            <p className="text-sm uppercase tracking-[0.3em] text-parchment-600">COGMERS Derasha (דרשה)</p>
             <h1 className="font-display text-2xl font-semibold text-ink-900">{selectedLessonTitle}</h1>
           </div>
           <div className="flex items-center gap-3">
@@ -1085,6 +1106,13 @@ export default function App() {
               }}
             >
               Presentation Mode
+            </button>
+            <button
+              className="rounded-full border border-parchment-300 p-2 text-parchment-700 transition hover:border-parchment-500 hover:text-parchment-900"
+              onClick={() => setLibraryOpen(true)}
+              aria-label="Open library search"
+            >
+              <BookIcon className="h-4 w-4" />
             </button>
             <button
               className="rounded-full border border-parchment-300 p-2 text-parchment-700 transition hover:border-parchment-500 hover:text-parchment-900"
@@ -1196,6 +1224,8 @@ export default function App() {
                 >
                   <div className={presentationMode ? "space-y-3" : "space-y-6"}>
                     {orderedSections.map((section, index) => {
+                      const inlineNote =
+                        presentationMode && !editMode && !section.subheading && section.note;
                       return (
                         <SortableSection key={section.id} id={section.id} disabled={!editMode}>
                           {({ attributes, listeners }) => (
@@ -1236,6 +1266,11 @@ export default function App() {
                                       onSave={(value) => handleSectionUpdate(section.id, { subheading: value })}
                                     />
                                   )}
+                                  {inlineNote && (
+                                    <span className="text-base text-ink-700 whitespace-pre-line">
+                                      {section.note}
+                                    </span>
+                                  )}
                                 </div>
                                 <div className="flex items-center gap-2">
                                   {aiEnabled && editMode && (
@@ -1265,7 +1300,7 @@ export default function App() {
                                 </div>
                               </div>
 
-                              {(editMode || section.note) &&
+                              {(editMode || (section.note && !inlineNote)) &&
                                 (editMode ? (
                                   <InlineEdit
                                     value={section.note}
@@ -1426,6 +1461,54 @@ export default function App() {
           </aside>
         )}
       </div>
+
+      {libraryOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/40 p-6 backdrop-blur"
+          onClick={() => {
+            setLibraryOpen(false);
+            setLibraryQuery("");
+          }}
+        >
+          <div
+            className="w-full max-w-lg rounded-3xl border border-parchment-200 bg-white/95 p-6 shadow-lift"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-parchment-600">
+                  Library
+                </p>
+                <h3 className="mt-1 font-display text-2xl font-semibold text-ink-900">
+                  Search resources
+                </h3>
+              </div>
+              <button
+                className="rounded-full border border-parchment-300 p-2 text-parchment-700 transition hover:border-parchment-500 hover:text-parchment-900"
+                onClick={() => {
+                  setLibraryOpen(false);
+                  setLibraryQuery("");
+                }}
+                aria-label="Close library search"
+              >
+                <span className="block h-4 w-4 text-center leading-4">X</span>
+              </button>
+            </div>
+
+            <div className="mt-4 flex items-center gap-3">
+              <input
+                className="flex-1 rounded-lg border border-parchment-200 bg-white/80 px-3 py-2 text-sm focus:border-parchment-400 focus:outline-none"
+                placeholder="Search books or notes..."
+                value={libraryQuery}
+                onChange={(event) => setLibraryQuery(event.target.value)}
+              />
+              <button className="rounded-full bg-ink-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-ink-900/90">
+                Search
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {settingsOpen && (
         <div
