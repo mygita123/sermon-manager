@@ -165,7 +165,7 @@ app.post("/ai/recommendations", async (req, res) => {
   const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 20) : 8;
 
   try {
-    const recommendations = await recommendVerses(db, queryText, limit);
+    const recommendations = await recommendVerses(db, queryText, limit, "all");
     res.json({ ...recommendations, query: queryText });
   } catch (error) {
     res.status(500).send(error.message || "Failed to generate recommendations");
@@ -246,6 +246,7 @@ app.post("/ai/section-notes", (req, res) => {
 
 app.post("/bible/search", async (req, res) => {
   const queryText = (req.body?.query || "").trim();
+  const scope = (req.body?.scope || "all").toLowerCase();
   const limitRaw = Number(req.body?.limit || 8);
   const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 20) : 8;
   if (!queryText) {

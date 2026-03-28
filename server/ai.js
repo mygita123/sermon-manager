@@ -6,6 +6,21 @@ const CACHE_DIR = path.join(__dirname, "..", "data", "ai");
 const READY_MARKER = path.join(CACHE_DIR, "model-ready.json");
 const EMBEDDING_CACHE_LIMIT = 2000;
 
+const OT_BOOKS = new Set([
+  "genesis","exodus","leviticus","numbers","deuteronomy","joshua","judges","ruth",
+  "1 samuel","2 samuel","1 kings","2 kings","1 chronicles","2 chronicles","ezra","nehemiah","esther",
+  "job","psalms","proverbs","ecclesiastes","song of solomon","isaiah","jeremiah","lamentations",
+  "ezekiel","daniel","hosea","joel","amos","obadiah","jonah","micah","nahum","habakkuk",
+  "zephaniah","haggai","zechariah","malachi"
+]);
+
+const NT_BOOKS = new Set([
+  "matthew","mark","luke","john","acts","romans","1 corinthians","2 corinthians","galatians",
+  "ephesians","philippians","colossians","1 thessalonians","2 thessalonians","1 timothy","2 timothy",
+  "titus","philemon","hebrews","james","1 peter","2 peter","1 john","2 john","3 john","jude",
+  "revelation"
+]);
+
 let pipelinePromise = null;
 let pipelineConfig = null;
 let downloadPromise = null;
@@ -167,7 +182,15 @@ function buildFtsQuery(text) {
   return filtered.map((token) => `${token}*`).join(" OR ");
 }
 
-function searchBibleFts(db, queryText, limit) {
+function filterByScope(rows, scope) {
+  if (!scope || scope === "all") return rows;
+  const which = scope === "ot" ? OT_BOOKS : scope === "nt" ? NT_BOOKS : null;
+  if (!which) return rows;
+  return rows.filter((row) => which.has(String(row.book || "").toLowerCase()));
+}
+
+function searchBibleFts(db, queryText, limit, scope = "all") {
+
   const query = buildFtsQuery(queryText);
   if (!query) return [];
   const stmt = db.prepare(
@@ -178,7 +201,7 @@ function searchBibleFts(db, queryText, limit) {
      ORDER BY score
      LIMIT ?`
   );
-  return stmt.all(query, limit);
+  return filterByScope(stmt.all(query, limit), scope);
 }
 
 async function rankCandidates(queryText, candidates) {
@@ -218,8 +241,9 @@ function formatResults(rows) {
   }));
 }
 
-async function recommendVerses(db, queryText, limit = 8) {
-  const candidates = searchBibleFts(db, queryText, Math.max(limit * 6, 30));
+async function recommendVerses(db, queryText, limit = 8, scope = "all") {
+  const poolSize = Math.max(limit * 6, 30);
+  const candidates = searchBibleFts(db, queryText, scope && scope !== "all" ? poolSize * 2 : poolSize, scope);
   if (!candidates.length) {
     return { mode: "fts", results: [] };
   }
